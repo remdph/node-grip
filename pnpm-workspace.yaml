@@ -1,0 +1,12 @@
+allowBuilds:
+  cpu-features: true
+  electron: true
+  electron-squirrel-startup: true
+  electron-winstaller: true
+  esbuild: true
+  # macOS-only deps from @electron-forge/maker-dmg.
+  fs-xattr: true
+  macos-alias: true
+  ssh2: true
+blockExoticSubdeps: false
+nodeLinker: hoisted

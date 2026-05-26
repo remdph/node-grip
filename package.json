@@ -1,0 +1,84 @@
+{
+  "name": "node-grip",
+  "productName": "NodeGrip",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron-based desktop database client with a custom titlebar and tabbed interface.",
+  "main": ".vite/build/main.js",
+  "license": "MIT",
+  "author": {
+    "name": "Rafael Maldonado"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.1.1",
+  "scripts": {
+    "start": "electron-forge start",
+    "dev": "bash scripts/dev-wayland.sh",
+    "dev:auto": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "publish": "electron-forge publish",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,html}\""
+  },
+  "dependencies": {
+    "@cantoo/pdf-lib": "^2.6.5",
+    "electron-squirrel-startup": "^1.0.1",
+    "mysql2": "^3.11.4",
+    "node-forge": "^1.4.0",
+    "pdfjs-dist": "5.4.296",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-pdf": "^10.4.1",
+    "react-rnd": "^10.5.3",
+    "react-virtuoso": "^4.18.7",
+    "ssh2": "^1.16.0",
+    "update-electron-app": "^3.2.0",
+    "zustand": "^5.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-squirrel-startup",
+      "fs-xattr",
+      "macos-alias",
+      "cpu-features",
+      "ssh2"
+    ]
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.5.0",
+    "@electron-forge/maker-deb": "^7.5.0",
+    "@electron-forge/maker-dmg": "^7.11.1",
+    "@electron-forge/maker-rpm": "^7.5.0",
+    "@electron-forge/maker-squirrel": "^7.5.0",
+    "@electron-forge/maker-zip": "^7.5.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.5.0",
+    "@electron-forge/plugin-fuses": "^7.5.0",
+    "@electron-forge/plugin-vite": "^7.5.0",
+    "@electron-forge/shared-types": "7.11.1",
+    "@electron/fuses": "^1.8.0",
+    "@electron/notarize": "^3.1.1",
+    "@reforged/maker-appimage": "^5.2.0",
+    "@types/node": "^22.7.5",
+    "@types/node-forge": "^1.3.14",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@types/ssh2": "^1.15.5",
+    "@typescript-eslint/eslint-plugin": "^8.8.1",
+    "@typescript-eslint/parser": "^8.8.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "electron": "^33.0.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.1",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "prettier": "^3.3.3",
+    "typescript": "~5.6.3",
+    "vite": "^5.4.8"
+  }
+}

@@ -1,0 +1,25 @@
+pkgbase = nodegrip-bin
+	pkgdesc = Lightweight, fast desktop database client built with Electron and React
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/remdph/node-grip
+	arch = x86_64
+	license = MIT
+	depends = alsa-lib
+	depends = gtk3
+	depends = libnotify
+	depends = libxss
+	depends = libxtst
+	depends = mesa
+	depends = nspr
+	depends = nss
+	depends = xdg-utils
+	optdepends = libappindicator-gtk3: tray icon support
+	provides = nodegrip
+	conflicts = nodegrip
+	options = !strip
+	options = !debug
+	source = nodegrip-bin-0.1.0.deb::https://github.com/remdph/node-grip/releases/download/v0.1.0/node-grip_0.1.0_amd64.deb
+	sha256sums = SKIP
+
+pkgname = nodegrip-bin

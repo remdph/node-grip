@@ -1,0 +1,118 @@
+import { app, BrowserWindow, shell } from 'electron';
+import path from 'node:path';
+
+import { IPC_CHANNELS } from '~shared/types/ipc.js';
+
+function appIconPath(): string {
+  // In dev, app.getAppPath() == the project root, so icon.png lives next to it.
+  // In packaged builds the icon is copied into the app's resources directory
+  // via forge's `extraResource`.
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(app.getAppPath(), 'icon.png');
+}
+
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+declare const MAIN_WINDOW_VITE_NAME: string;
+
+export function createMainWindow(): BrowserWindow {
+  const isMac = process.platform === 'darwin';
+  // On macOS we keep a frameless window but use `titleBarStyle: 'hidden'`
+  // so the native traffic-light controls (close/min/zoom) still render
+  // over our custom titlebar, positioned to land where the icon used to
+  // sit. On Windows/Linux we keep the fully custom titlebar with our own
+  // min/max/close buttons.
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    backgroundColor: '#0f1115',
+    show: false,
+    title: 'NodeGrip',
+    icon: appIconPath(),
+    ...(isMac
+      ? {
+          titleBarStyle: 'hidden' as const,
+          trafficLightPosition: { x: 12, y: 12 },
+        }
+      : { frame: false }),
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  const broadcastMaximize = (maximized: boolean) =>
+    win.webContents.send(IPC_CHANNELS.window.maximizeChange, maximized);
+  win.on('maximize', () => broadcastMaximize(true));
+  win.on('unmaximize', () => broadcastMaximize(false));
+
+  win.on('ready-to-show', () => win.show());
+
+  // DevTools shortcuts (the native menu is hidden, so we register them here).
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (input.type !== 'keyDown') return;
+    const isDevTools =
+      input.key === 'F12' ||
+      (input.control && input.shift && (input.key === 'I' || input.key === 'i'));
+    if (isDevTools) win.webContents.toggleDevTools();
+    if (input.control && input.shift && (input.key === 'R' || input.key === 'r')) {
+      win.webContents.reloadIgnoringCache();
+    }
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  // `setWindowOpenHandler` above only catches popups (target="_blank"
+  // or window.open). PDF link annotations are rendered by pdf.js as
+  // plain `<a href>` without target, so a click navigates the entire
+  // webContents — turning the app into a web browser. Intercept any
+  // cross-origin navigation and hand it off to the OS browser via
+  // `shell.openExternal`. Same-origin nav (in-PDF hash links, dev-
+  // server reloads, etc.) passes through unmodified.
+  win.webContents.on('will-navigate', (event, url) => {
+    let isSameOrigin = false;
+    try {
+      const currentUrl = win.webContents.getURL();
+      if (currentUrl) {
+        isSameOrigin = new URL(url).origin === new URL(currentUrl).origin;
+      }
+    } catch {
+      // Bad URL — fall through and treat as external.
+    }
+    if (isSameOrigin) return;
+    event.preventDefault();
+    void shell.openExternal(url);
+  });
+
+  if (typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+    const devUrl = MAIN_WINDOW_VITE_DEV_SERVER_URL;
+    // electron-forge launches Electron concurrently with the Vite dev server,
+    // so the first loadURL can lose the race with Vite's listen() and surface
+    // ERR_CONNECTION_REFUSED. Without a retry the renderer stays blank.
+    win.webContents.on('did-fail-load', (_e, errorCode, _desc, validatedUrl) => {
+      if (win.isDestroyed()) return;
+      if (validatedUrl && !validatedUrl.startsWith(devUrl)) return;
+      if (errorCode === -102 || errorCode === -105 || errorCode === -7) {
+        setTimeout(() => {
+          if (!win.isDestroyed()) void win.loadURL(devUrl);
+        }, 250);
+      }
+    });
+    void win.loadURL(devUrl);
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.openDevTools({ mode: 'detach' });
+    });
+  } else {
+    void win.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+  }
+
+  return win;
+}
