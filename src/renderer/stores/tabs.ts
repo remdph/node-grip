@@ -31,6 +31,9 @@ interface TabsState {
    * toggling a tool window applies across all open projects. */
   leftSidebarOpen: boolean;
   rightSidebarOpen: boolean;
+  /** Width in px of the home view sidebar. */
+  homeSidebarWidth: number;
+  setHomeSidebarWidth(width: number): void;
   setView(view: View): void;
   close(id: string): void;
   activate(id: string): void;
@@ -67,6 +70,9 @@ export const useTabsStore = create<TabsState>()(
       starred: [],
       leftSidebarOpen: true,
       rightSidebarOpen: true,
+      homeSidebarWidth: 232,
+
+      setHomeSidebarWidth: (width) => set({ homeSidebarWidth: width }),
 
       setView: (view) => set({ view }),
 
@@ -174,6 +180,7 @@ export const useTabsStore = create<TabsState>()(
         starred: state.starred,
         leftSidebarOpen: state.leftSidebarOpen,
         rightSidebarOpen: state.rightSidebarOpen,
+        homeSidebarWidth: state.homeSidebarWidth,
       }),
       // Defensive normalization on rehydrate: if tabs is empty, force
       // activeId/view back to "home". Without this guard, stale state can
@@ -193,18 +200,22 @@ export const useTabsStore = create<TabsState>()(
       // (PdfTab.filePath etc.) is dropped on first load — the pivot to a
       // database client makes the previous payload meaningless.
       // v2: adds left/right sidebar visibility toggles.
-      version: 2,
+      // v3: adds homeSidebarWidth.
+      version: 3,
       migrate: (persisted, version) => {
         if (!persisted || typeof persisted !== 'object') return persisted;
         let next = persisted as Record<string, unknown>;
         if (version < 2) {
-          // Default both side panels to visible — that's the layout the
-          // user has been using up to now, so the migration should be a
-          // visual no-op for existing sessions.
           next = {
             ...next,
             leftSidebarOpen: true,
             rightSidebarOpen: true,
+          };
+        }
+        if (version < 3) {
+          next = {
+            ...next,
+            homeSidebarWidth: 232,
           };
         }
         return next;

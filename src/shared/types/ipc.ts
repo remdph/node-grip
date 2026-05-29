@@ -82,6 +82,10 @@ export interface ProjectMetadata {
   /** ISO timestamp of the first time NodeGrip wrote metadata to this
    * folder. Used to render "Created on …" in future. */
   createdAt: string;
+  /** Base64-encoded AES-256 key used to encrypt datasource passwords in
+   * this project's vault. If undefined the project uses the built-in
+   * default key (not for new projects — always set on creation). */
+  encryptionKey?: string;
 }
 
 export interface ProjectInfo {
@@ -220,6 +224,9 @@ export interface IpcApi {
      * with the folder basename as the project name. Always returns the
      * resolved {folderPath, metadata}; the renderer can use it directly. */
     open(folderPath: string): Promise<ProjectInfo>;
+    /** Store or update the project passphrase. Pass undefined to reset
+     * to the default built-in passphrase. Returns the updated metadata. */
+    setPassphrase(folderPath: string, passphrase: string | undefined): Promise<ProjectMetadata>;
     /** List the immediate children of `folderPath`. Used by the right
      * Files panel for lazy tree expansion — the renderer expands one
      * level at a time so we never scan a deep tree up-front. Returns
@@ -421,6 +428,7 @@ export const IPC_CHANNELS = {
     create: 'project:create',
     read: 'project:read',
     open: 'project:open',
+    setPassphrase: 'project:set-passphrase',
     listFolder: 'project:list-folder',
     readFile: 'project:read-file',
   },

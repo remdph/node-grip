@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 
 import { NodeGripError } from '~shared/types/errors.js';
 import type { DatasourceConfig } from '~shared/types/datasource.js';
+import { clearPassword } from './vault.js';
 
 const DATASOURCES_SUBDIR = path.join('.nodegrip', 'datasources');
 

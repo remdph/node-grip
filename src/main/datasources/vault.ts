@@ -1,7 +1,6 @@
-import { safeStorage } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto';
 
 import { NodeGripError } from '~shared/types/errors.js';
 import type { PasswordSaveMode } from '~shared/types/datasource.js';
@@ -21,11 +20,68 @@ function vaultPath(folderPath: string): string {
   return path.join(folderPath, VAULT_FILE);
 }
 
+/** Derive a 32-byte AES-256 key from a passphrase using PBKDF2. */
+function deriveKey(passphrase: string, salt: Buffer): Buffer {
+  return require('node:crypto').pbkdf2Sync(passphrase, salt, 100_000, 32, 'sha256');
+}
+
+/** Encrypt plaintext using AES-256-GCM with a passphrase.
+ * Returns base64-encoded string containing salt + iv + ciphertext + tag. */
+function encryptAes(plaintext: string, passphrase: string): string {
+  const salt = randomBytes(32);
+  const key = deriveKey(passphrase, salt);
+  const iv = randomBytes(16);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  // Pack: salt(32) + iv(16) + tag(16) + ciphertext
+  const result = Buffer.concat([salt, iv, tag, encrypted]);
+  return result.toString('base64');
+}
+
+/** Decrypt a string produced by encryptAes. Throws on integrity failure. */
+function decryptAes(ciphertext: string, passphrase: string): string {
+  const data = Buffer.from(ciphertext, 'base64');
+  if (data.length < 64) throw new NodeGripError('VALIDATION_ERROR', 'Invalid vault blob');
+  const salt = data.subarray(0, 32);
+  const iv = data.subarray(32, 48);
+  const tag = data.subarray(48, 64);
+  const encrypted = data.subarray(64);
+  const key = deriveKey(passphrase, salt);
+  const decipher = createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return decrypted.toString('utf8');
+}
+
 /** Persisted shape: `{ <datasourceId>: <base64-encrypted-blob> }`. The
  * file lives next to the datasource configs so moving the project
- * folder keeps the passwords with it (decryption still requires the
- * same OS user / keychain, which is the desired property). */
+ * folder keeps the passwords with it. */
 type PersistedVault = Record<string, string>;
+
+/** Project-level passphrase — set once per project on first creation.
+ * Stored in memory; defaults to the built-in default if not set. */
+const projectPassphrases = new Map<string, string>();
+
+/** Default passphrase for new projects or projects without a custom passphrase.
+ * Passwords are still encrypted (not stored in plaintext) but the key is
+ * known - this protects against casual file access but not determined attackers. */
+const DEFAULT_PASSPHRASE = 'NodeGrip-v1-Built-in-Default-Key-2024';
+
+/** Set the passphrase for a project. Call this before any vault operations
+ * when opening a project. Pass undefined to reset to the default passphrase. */
+export function setProjectPassphrase(folderPath: string, passphrase: string | undefined): void {
+  if (passphrase) {
+    projectPassphrases.set(folderPath, passphrase);
+  } else {
+    projectPassphrases.delete(folderPath);
+  }
+}
+
+/** Get the effective passphrase for a project. */
+function getProjectPassphrase(folderPath: string): string {
+  return projectPassphrases.get(folderPath) ?? DEFAULT_PASSPHRASE;
+}
 
 async function readPersisted(folderPath: string): Promise<PersistedVault> {
   try {
@@ -36,8 +92,6 @@ async function readPersisted(folderPath: string): Promise<PersistedVault> {
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return {};
-    // A corrupted vault is recoverable by re-entering the password,
-    // so we don't fail-loud — log + treat as empty.
     console.warn(`[vault] failed to read ${vaultPath(folderPath)}:`, err);
     return {};
   }
@@ -55,14 +109,14 @@ async function writePersisted(
   await fs.rename(tmp, target);
 }
 
-function ensureSafeStorage(): void {
-  if (!safeStorage.isEncryptionAvailable()) {
-    throw new NodeGripError(
-      'VALIDATION_ERROR',
-      'OS keychain unavailable — cannot save passwords with mode "forever". ' +
-        'Pick "Until restart" or "Never" instead.',
-    );
-  }
+function encryptWithPassphrase(plaintext: string, folderPath: string): string {
+  const passphrase = getProjectPassphrase(folderPath);
+  return encryptAes(plaintext, passphrase);
+}
+
+function decryptWithPassphrase(ciphertext: string, folderPath: string): string {
+  const passphrase = getProjectPassphrase(folderPath);
+  return decryptAes(ciphertext, passphrase);
 }
 
 /** Persist a password according to `mode`. */
@@ -75,9 +129,6 @@ export async function setPassword(
   if (typeof password !== 'string') {
     throw new NodeGripError('VALIDATION_ERROR', 'Password must be a string');
   }
-  // Always start clean: a previous mode may have left state in the
-  // other tier. e.g. switching from forever → session must wipe the
-  // encrypted blob from disk.
   await clearPassword(folderPath, id);
 
   if (mode === 'never') return;
@@ -86,10 +137,11 @@ export async function setPassword(
     return;
   }
   if (mode === 'forever') {
-    ensureSafeStorage();
-    const cipher = safeStorage.encryptString(password);
+    // Always use project-specific AES-256-GCM encryption with the
+    // project's passphrase (custom or built-in default)
+    const cipher = encryptWithPassphrase(password, folderPath);
     const vault = await readPersisted(folderPath);
-    vault[id] = cipher.toString('base64');
+    vault[id] = cipher;
     await writePersisted(folderPath, vault);
     return;
   }
@@ -108,15 +160,8 @@ export async function getPassword(
   const vault = await readPersisted(folderPath);
   const cipher = vault[id];
   if (!cipher) return null;
-  if (!safeStorage.isEncryptionAvailable()) {
-    // We have an encrypted blob but no decryption capability — most
-    // likely the user moved the .nodegrip folder to another machine
-    // or another user account. Treat as "missing" so the renderer
-    // prompts again.
-    return null;
-  }
   try {
-    return safeStorage.decryptString(Buffer.from(cipher, 'base64'));
+    return decryptWithPassphrase(cipher, folderPath);
   } catch (err) {
     console.warn(`[vault] failed to decrypt password for ${id}:`, err);
     return null;

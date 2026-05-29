@@ -11,6 +11,7 @@ import type {
   ProjectMetadata,
 } from '~shared/types/ipc.js';
 import { handle } from './register.js';
+import { setProjectPassphrase } from '../datasources/vault.js';
 
 /** Hard cap for `readFile`. Larger files are reported with
  * `tooLarge: true` and an empty content payload so the renderer can
@@ -230,7 +231,11 @@ export function registerProjectIpc(): void {
       }
 
       const existing = await readMetadata(folderPath);
-      if (existing) return { folderPath, metadata: existing };
+      if (existing) {
+        // Existing project: set vault passphrase from stored encryption key
+        setProjectPassphrase(folderPath, existing.encryptionKey ?? undefined);
+        return { folderPath, metadata: existing };
+      }
 
       const metadata: ProjectMetadata = {
         name: deriveProjectName(folderPath),
@@ -238,6 +243,28 @@ export function registerProjectIpc(): void {
       };
       await writeMetadata(folderPath, metadata);
       return { folderPath, metadata };
+    },
+  );
+
+  // Store or update the passphrase for a project. The passphrase is
+  // persisted in project.json and used to derive the vault encryption key.
+  handle<[string, string | undefined], ProjectMetadata>(
+    IPC_CHANNELS.project.setPassphrase,
+    async (_event, folderPath, passphrase) => {
+      if (typeof folderPath !== 'string' || folderPath.length === 0) {
+        throw new NodeGripError('INVALID_PATH', 'A folder path is required');
+      }
+      if (!path.isAbsolute(folderPath)) {
+        throw new NodeGripError('INVALID_PATH', 'Folder path must be absolute');
+      }
+      const metadata = await readMetadata(folderPath);
+      if (!metadata) {
+        throw new NodeGripError('VALIDATION_ERROR', `Project not found: ${folderPath}`);
+      }
+      setProjectPassphrase(folderPath, passphrase);
+      const updated: ProjectMetadata = { ...metadata, encryptionKey: passphrase };
+      await writeMetadata(folderPath, updated);
+      return updated;
     },
   );
 

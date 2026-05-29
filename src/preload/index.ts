@@ -91,6 +91,8 @@ const api = {
       invoke<ProjectMetadata | null>(IPC_CHANNELS.project.read, folderPath),
     open: (folderPath: string) =>
       invoke<ProjectInfo>(IPC_CHANNELS.project.open, folderPath),
+    setPassphrase: (folderPath: string, passphrase: string | undefined) =>
+      invoke<ProjectMetadata>(IPC_CHANNELS.project.setPassphrase, folderPath, passphrase),
     listFolder: (folderPath: string) =>
       invoke<FileEntry[]>(IPC_CHANNELS.project.listFolder, folderPath),
     readFile: (filePath: string) =>

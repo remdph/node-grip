@@ -1171,10 +1171,26 @@ button.primary:disabled {
 
 .home-body {
   flex: 1;
-  display: grid;
-  grid-template-columns: 232px 1fr;
+  display: flex;
   min-height: 0;
   min-width: 0;
+}
+
+.home-sidebar-resizer {
+  cursor: col-resize;
+  width: 6px;
+  margin: 0 -3px;
+  z-index: 10;
+  flex-shrink: 0;
+  background: transparent;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+}
+
+.home-sidebar-resizer:hover,
+.home-sidebar-resizer.is-resizing {
+  border-color: var(--accent);
+  opacity: 0.7;
 }
 
 .home-sidebar {
@@ -1182,10 +1198,11 @@ button.primary:disabled {
   background: var(--bg);
   padding: 1.5rem 0.75rem;
   overflow-y: auto;
-  /* Stack nav on top, updater status pinned to the bottom via the
-   * trailing `margin-top: auto` on `.updater-status`. */
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  width: 232px;
+  transition: width 0.15s ease;
 }
 
 .home-nav {
@@ -1270,8 +1287,8 @@ button.primary:disabled {
 /* --- Tools row ---------------------------------------------------------- */
 
 .home-tools {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
 }
 
@@ -1999,10 +2016,10 @@ button.primary:disabled {
 }
 
 .ds-dialog {
-  width: 1080px;
-  max-width: 94vw;
-  height: 700px;
-  max-height: 92vh;
+  width: 90vw;
+  max-width: 800px;
+  height: auto;
+  max-height: 500px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -2010,13 +2027,15 @@ button.primary:disabled {
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
+  flex-shrink: 0;
 }
 
 .ds-dialog-body {
   display: flex;
   flex: 1;
-  min-height: 0;
+  min-height: 300px;
+  overflow: auto;
 }
 
 /* Left list ------------------------------------------------------------ */
@@ -2028,6 +2047,18 @@ button.primary:disabled {
   border-right: 1px solid var(--border);
   min-height: 0;
   overflow: hidden;
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.ds-list-items {
+  flex: 1;
+  margin: 0;
+  padding: 0.15rem 0.25rem;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .ds-list-toolbar {
@@ -2156,11 +2187,11 @@ button.primary:disabled {
   display: flex;
   flex-direction: column;
   background: var(--bg-elev);
-  overflow: hidden;
+  overflow: auto;
 }
 
 .ds-empty {
-  flex: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2168,6 +2199,8 @@ button.primary:disabled {
   gap: 0.5rem;
   text-align: center;
   padding: 2rem;
+  min-height: 0;
+  overflow: auto;
 }
 
 .ds-empty-title {
@@ -2188,11 +2221,13 @@ button.primary:disabled {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .ds-editor-head {
   padding: 0.85rem 1.1rem 0.5rem;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .ds-editor-row {
@@ -2957,6 +2992,7 @@ button.ds-editor-side-tab {
   padding: 0.6rem 1rem;
   border-top: 1px solid var(--border);
   background: var(--bg-elev);
+  flex-shrink: 0;
 }
 
 .ds-dialog-footer-left {

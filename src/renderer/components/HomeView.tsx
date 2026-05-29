@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 
 import iconUrl from '../assets/icon.png';
 import { ipc } from '../lib/ipc.js';
@@ -18,10 +18,16 @@ export function HomeView(): JSX.Element {
   const recents = useTabsStore((s) => s.recents);
   const starred = useTabsStore((s) => s.starred);
   const openProject = useTabsStore((s) => s.openProject);
+  const setHomeSidebarWidth = useTabsStore((s) => s.setHomeSidebarWidth);
+  const homeSidebarWidth = useTabsStore((s) => s.homeSidebarWidth);
   const toggleStarred = useTabsStore((s) => s.toggleStarred);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [section, setSection] = useState<HomeSection>('recent');
   const [createOpen, setCreateOpen] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const startXRef = useRef(0);
+  const startWidthRef = useRef(0);
+  const sidebarRef = useRef<HTMLDivElement>(null);
 
   /** Drive the project picker: pick a folder, then run `project.open`
    * which reads existing metadata or auto-initialises `.nodegrip/`. */
@@ -37,6 +43,29 @@ export function HomeView(): JSX.Element {
 
   const starredProjects = recents.filter((r) => starred.includes(r.folderPath));
   const isStarred = (folderPath: string) => starred.includes(folderPath);
+
+  const onResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    startXRef.current = e.clientX;
+    startWidthRef.current = homeSidebarWidth;
+  }, [homeSidebarWidth]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    const onMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - startXRef.current;
+      const newWidth = Math.max(160, Math.min(480, startWidthRef.current + delta));
+      setHomeSidebarWidth(newWidth);
+    };
+    const onMouseUp = () => setIsResizing(false);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isResizing, setHomeSidebarWidth]);
 
   return (
     <div className="home">
@@ -63,7 +92,12 @@ export function HomeView(): JSX.Element {
         </button>
       </header>
       <div className="home-body">
-        <aside className="home-sidebar" aria-label="Navigation">
+        <aside
+          className="home-sidebar"
+          ref={sidebarRef}
+          style={{ width: homeSidebarWidth }}
+          aria-label="Navigation"
+        >
           <nav>
             <ul className="home-nav">
               <li>
@@ -94,6 +128,10 @@ export function HomeView(): JSX.Element {
           </nav>
           <UpdaterStatus />
         </aside>
+        <div
+          className={`home-sidebar-resizer${isResizing ? ' is-resizing' : ''}`}
+          onMouseDown={onResizeStart}
+        />
 
         <main className="home-main">
           {section === 'recent' && (
